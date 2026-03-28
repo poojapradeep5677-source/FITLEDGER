@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitLedger - Goals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">🎯 Goals</div>
+    </header>
+
+    <div class="card" style="text-align: center;">
+      <h3 style="margin-bottom: 5px;">Current Weight</h3>
+      <div id="currWeight" style="font-size: 36px; font-weight: 800; color: var(--primary);">0 kg</div>
+      <p style="font-size: 12px; color: var(--muted); margin-bottom: 20px;">Your starting weight is tracked automatically.</p>
+      
+      <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <input type="number" id="logWeight" placeholder="Enter new weight (kg)" style="margin-bottom: 0;" />
+        <button class="btn btn-primary" onclick="logNewWeight()">Log Weight</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 90px;">
+      <div class="card-header">Weight History</div>
+      <div id="weightLog"></div>
+    </div>
+
+  </div>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item"><span class="nav-icon">🏠</span>Home</a>
+    <a href="meals.html" class="nav-item"><span class="nav-icon">🍽</span>Meals</a>
+    <a href="summary.html" class="nav-item"><span class="nav-icon">📊</span>Summary</a>
+    <a href="goals.html" class="nav-item active"><span class="nav-icon">🎯</span>Goals</a>
+    <a href="progress.html" class="nav-item"><span class="nav-icon">📈</span>Progress</a>
+  </nav>
+
+  <script src="script.js"></script>
+  <script>
+    function initPage() {
+      if(!state.user) return;
+      document.getElementById('currWeight').innerText = state.user.weight + ' kg';
+      renderLogs();
+    }
+
+    function logNewWeight() {
+      let wt = parseFloat(document.getElementById('logWeight').value);
+      if(!wt || wt <= 0) return alert("Enter valid weight");
+      
+      // Update global user weight
+      state.user.weight = wt;
+      state.weightHistory.push({
+        weight: wt,
+        date: new Date().toLocaleDateString()
+      });
+      saveState();
+      
+      document.getElementById('logWeight').value = '';
+      initPage();
+    }
+
+    function renderLogs() {
+      let wl = document.getElementById('weightLog');
+      if (state.weightHistory.length === 0) {
+        wl.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 10px;">No manual weight entries logged.</div>`;
+        return;
+      }
+      wl.innerHTML = '';
+      
+      // Reverse array to show newest first
+      let rev = [...state.weightHistory].reverse();
+      rev.forEach((entry, i) => {
+        let diffHTML = "";
+        if(i < rev.length - 1) { // Not the oldest
+           let prev = rev[i+1].weight;
+           let diff = entry.weight - prev;
+           if(diff > 0) diffHTML = `<span style="color: var(--danger); font-size: 12px;">+${diff.toFixed(1)} kg</span>`;
+           else if(diff < 0) diffHTML = `<span style="color: var(--primary); font-size: 12px;">${diff.toFixed(1)} kg</span>`;
+        }
+
+        let div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+          <div>
+            <div class="item-name">${entry.date}</div>
+            <div class="item-meta">Weight Log</div>
+          </div>
+          <div style="text-align: right;">
+            <div class="item-cal" style="color: var(--text);">${entry.weight} kg</div>
+            ${diffHTML}
+          </div>
+        `;
+        wl.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>

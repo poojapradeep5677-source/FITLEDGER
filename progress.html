@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitLedger - Progress</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Simple CSS Bar Chart */
+    .chart { display: flex; align-items: flex-end; justify-content: space-between; height: 150px; padding: 20px 0 10px; border-bottom: 2px solid #eee; margin-top: 10px; }
+    .bar-group { display: flex; flex-direction: column; align-items: center; width: 10%; }
+    .bar { width: 100%; background-color: var(--primary); border-radius: 4px 4px 0 0; transition: height 0.5s ease; position: relative;}
+    .bar:hover { background-color: var(--primary-dark); }
+    .bar-lbl { font-size: 10px; color: var(--muted); margin-top: 5px; }
+    
+    .weight-chart { height: 150px; position: relative; margin-top: 20px; border-bottom: 2px solid #eee;}
+    .w-point { position: absolute; width: 8px; height: 8px; background: var(--danger); border-radius: 50%; transform: translate(-50%, 50%); }
+    .w-line { position: absolute; background: var(--danger); height: 2px; transform-origin: 0 50%; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">📈 Progress</div>
+    </header>
+
+    <div class="card">
+      <div class="card-header">Weekly Calories (Simulated)</div>
+      <div class="chart" id="calChart">
+        <!-- Bars will be inserted via JS -->
+      </div>
+      <p style="text-align: center; color: var(--muted); font-size: 11px; margin-top: 10px;">Visualizing past 7 days</p>
+    </div>
+
+    <div class="card" style="margin-bottom: 90px;">
+      <div class="card-header">Weight Trend</div>
+      <div class="weight-chart" id="weightChart">
+        <!-- Points will be inserted via JS -->
+      </div>
+      <p style="text-align: center; color: var(--muted); font-size: 11px; margin-top: 10px;" id="wtTrendMsg">Log weight in Goals to see trend.</p>
+    </div>
+
+  </div>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item"><span class="nav-icon">🏠</span>Home</a>
+    <a href="meals.html" class="nav-item"><span class="nav-icon">🍽</span>Meals</a>
+    <a href="summary.html" class="nav-item"><span class="nav-icon">📊</span>Summary</a>
+    <a href="goals.html" class="nav-item"><span class="nav-icon">🎯</span>Goals</a>
+    <a href="progress.html" class="nav-item active"><span class="nav-icon">📈</span>Progress</a>
+  </nav>
+
+  <script src="script.js"></script>
+  <script>
+    function initPage() {
+      renderCalChart();
+      renderWeightChart();
+    }
+
+    function renderCalChart() {
+      let chart = document.getElementById('calChart');
+      if(!state.user) return;
+      let target = calculateTDEE();
+      
+      // Generate some dummy data for past 6 days + today's actual
+      let days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      let d = new Date().getDay();
+      let labels = [];
+      for(let i=6; i>=0; i--) {
+        labels.push(days[(d + 7 - i) % 7]);
+      }
+      
+      let sum = getDailySummary();
+      let data = [
+        target - 200, target + 100, target - 50, target + 300, target - 400, target - 100, sum.consumed
+      ];
+
+      chart.innerHTML = '';
+      data.forEach((val, i) => {
+        let pct = Math.min((val / (target + 500)) * 100, 100);
+        let group = document.createElement('div');
+        group.className = 'bar-group';
+        
+        let color = val > target ? 'var(--danger)' : 'var(--primary)';
+        if(i === 6) color = 'var(--text)'; // Today
+
+        group.innerHTML = `
+          <div class="bar" style="height: ${pct}%; background-color: ${color};" title="${val} kcal"></div>
+          <div class="bar-lbl">${labels[i]}</div>
+        `;
+        chart.appendChild(group);
+      });
+    }
+
+    function renderWeightChart() {
+      let chart = document.getElementById('weightChart');
+      let msg = document.getElementById('wtTrendMsg');
+      if(!state.weightHistory || state.weightHistory.length < 2) {
+         msg.innerText = "Need at least 2 weight logs to show trend.";
+         return;
+      }
+      msg.innerText = "Weight changes over time.";
+      chart.innerHTML = '';
+
+      let maxW = Math.max(...state.weightHistory.map(w => w.weight)) + 2;
+      let minW = Math.min(...state.weightHistory.map(w => w.weight)) - 2;
+      let range = maxW - minW;
+      
+      let widthStep = 100 / Math.max(1, (state.weightHistory.length - 1));
+      
+      for(let i=0; i<state.weightHistory.length; i++) {
+        let w = state.weightHistory[i].weight;
+        let yPct = 100 - ((w - minW) / range * 100);
+        let xPct = i * widthStep;
+
+        // Draw Point
+        let pt = document.createElement('div');
+        pt.className = 'w-point';
+        pt.style.left = `${xPct}%`;
+        pt.style.bottom = `${yPct}%`;
+        pt.title = `${w} kg on ${state.weightHistory[i].date}`;
+        chart.appendChild(pt);
+
+        // Draw Line to next point
+        if(i < state.weightHistory.length - 1) {
+          let nextW = state.weightHistory[i+1].weight;
+          let nextYPct = 100 - ((nextW - minW) / range * 100);
+          let nextXPct = (i+1) * widthStep;
+          
+          let line = document.createElement('div');
+          line.className = 'w-line';
+          let dx = nextXPct - xPct;
+          let dy = nextYPct - yPct;
+          
+          // These are basic calculations, normally done via SVG. Using simple CSS approximation.
+          // Since xPct is relative to width and yPct to height, exact angles in pure percent are tricky.
+          // In a real app we'd use SVG or Canvas.
+          // I will just use points for the CSS simple version rather than skewed lines.
+        }
+      }
+    }
+  </script>
+</body>
+</html>

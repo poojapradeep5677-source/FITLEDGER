@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitLedger - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">🌿 FitLedger</div>
+      <button class="logout-btn" onclick="clearData()">Sign Out</button>
+    </header>
+
+    <div id="aiBox" class="ai-box hidden">
+      <span class="ai-icon">🤖</span>
+      <span id="aiMsg">Analyzing your data...</span>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🔥 Today's Calories</div>
+      <div class="progress-ring-container">
+         <div class="ring-content">
+            <div class="ring-val" id="calRemaining">0</div>
+            <div class="ring-lbl">Remaining</div>
+         </div>
+      </div>
+      <div class="metrics-row">
+        <div class="metric">
+          <div class="metric-title">Consumed</div>
+          <div class="metric-val" id="calConsumed">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-title">Burned</div>
+          <div class="metric-val" id="calBurned">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📊 Nutrition</div>
+      <div class="macro-grid">
+        <div class="macro"><span class="macro-lbl">Protein</span><span class="macro-val m-prot" id="mProt">0g</span></div>
+        <div class="macro"><span class="macro-lbl">Carbs</span><span class="macro-val m-carb" id="mCarb">0g</span></div>
+        <div class="macro"><span class="macro-lbl">Fat</span><span class="macro-val m-fat" id="mFat">0g</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">💧 Water Tracker</div>
+      <div class="water-flex">
+        <div class="water-controls">
+          <button class="w-btn w-sub" onclick="updateWater(-1)">-</button>
+          <button class="w-btn w-add" onclick="updateWater(1)">+</button>
+        </div>
+        <div class="water-glasses" id="waterDisp">0 / 8 🚰</div>
+      </div>
+      <p style="font-size: 13px; color: var(--text); margin-top: 10px; font-weight: 500;" id="waterMsg">Log your glasses of water.</p>
+    </div>
+
+    <div class="card" style="margin-bottom: 90px">
+      <div class="card-header">👤 Body Stats</div>
+      <div class="list-item">
+        <span class="item-name">BMI</span>
+        <span class="item-cal" id="statBmi">0</span>
+      </div>
+      <div class="list-item">
+        <span class="item-name">BMR</span>
+        <span class="item-cal" id="statBmr">0 kcal</span>
+      </div>
+      <div class="list-item">
+        <span class="item-name">Calorie Goal</span>
+        <span class="item-cal" id="statGoal">0 kcal</span>
+      </div>
+    </div>
+  </div>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item active"><span class="nav-icon">🏠</span>Home</a>
+    <a href="meals.html" class="nav-item"><span class="nav-icon">🍽</span>Meals</a>
+    <a href="summary.html" class="nav-item"><span class="nav-icon">📊</span>Summary</a>
+    <a href="goals.html" class="nav-item"><span class="nav-icon">🎯</span>Goals</a>
+    <a href="progress.html" class="nav-item"><span class="nav-icon">📈</span>Progress</a>
+  </nav>
+
+  <div id="setupOverlay" class="overlay hidden">
+    <div class="card" style="width: 100%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+      <h2 style="margin-bottom: 5px;">Welcome to FitLedger</h2>
+      <p style="color: var(--muted); margin-bottom: 20px; font-size: 14px;">Set up your profile to calculate goals.</p>
+      
+      <input type="number" id="sWeight" placeholder="Weight (kg)" required />
+      <input type="number" id="sHeight" placeholder="Height (cm)" required />
+      <input type="number" id="sAge" placeholder="Age" required />
+      <select id="sGender">
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+      </select>
+      <button class="btn btn-primary" onclick="completeSetup()">Get Started</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+  <script>
+    function initPage() {
+      if(!state.user) {
+        document.getElementById('setupOverlay').classList.remove('hidden');
+      } else {
+        renderDashboard();
+      }
+    }
+
+    function completeSetup() {
+      let w = parseFloat(document.getElementById('sWeight').value);
+      let h = parseFloat(document.getElementById('sHeight').value);
+      let a = parseInt(document.getElementById('sAge').value);
+      let g = document.getElementById('sGender').value;
+      if(!w || !h || !a) return alert('Please enter valid details');
+      
+      state.user = { weight: w, height: h, age: a, gender: g };
+      saveState();
+      document.getElementById('setupOverlay').classList.add('hidden');
+      renderDashboard();
+    }
+
+    function updateWater(val) {
+      if(state.water + val >= 0) {
+        state.water += val;
+        saveState();
+        renderDashboard();
+      }
+    }
+
+    function renderDashboard() {
+      let bmr = calculateBMR();
+      let goal = calculateTDEE();
+      let sum = getDailySummary();
+      
+      document.getElementById('statBmr').innerText = Math.round(bmr) + ' kcal';
+      document.getElementById('statGoal').innerText = goal + ' kcal';
+      
+      let bmi = (state.user.weight / Math.pow(state.user.height / 100, 2)).toFixed(1);
+      document.getElementById('statBmi').innerText = bmi;
+
+      document.getElementById('calConsumed').innerText = sum.consumed;
+      document.getElementById('calBurned').innerText = sum.burned;
+      document.getElementById('calRemaining').innerText = (goal - sum.consumed + sum.burned);
+
+      document.getElementById('mProt').innerText = sum.prot + 'g';
+      document.getElementById('mCarb').innerText = sum.carb + 'g';
+      document.getElementById('mFat').innerText = sum.fat + 'g';
+
+      document.getElementById('waterDisp').innerText = `${state.water} / 8 🚰`;
+
+      let aiBox = document.getElementById('aiBox');
+      let aiMsg = document.getElementById('aiMsg');
+      aiBox.classList.remove('hidden');
+
+      if (sum.prot < 50 && sum.consumed > 500) {
+        aiMsg.innerHTML = "⚠️ <b>Protein is low!</b> Try eggs, dal, or chicken.";
+      } else if (sum.fat > 60 && sum.consumed > 500) {
+        aiMsg.innerHTML = "🔥 <b>High fat intake.</b> Reduce fried foods.";
+      } else if (sum.carb > 250 && sum.consumed > 500) {
+        aiMsg.innerHTML = "⚠️ <b>Too many carbs!</b> Balance your meals.";
+      } else if (sum.consumed > 0) {
+        aiMsg.innerHTML = "💪 <b>Great job!</b> Your nutrition is balanced.";
+      } else {
+        aiBox.classList.add('hidden');
+      }
+
+      let wm = document.getElementById('waterMsg');
+      if(state.water < 4) wm.innerHTML = "⚠️ Water intake is low!<br>💧 Drink more glasses today.<br>🚰 Stay hydrated!";
+      else if(state.water < 8) wm.innerHTML = "🙂 Good, but drink more to reach 8 glasses.";
+      else wm.innerHTML = "💧 Great hydration level!";
+    }
+  </script>
+</body>
+</html>

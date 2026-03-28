@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitLedger - Summary</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">📊 Summary</div>
+    </header>
+
+    <!-- Daily Overview -->
+    <div class="card">
+      <div class="card-header">Target vs Actual</div>
+      <div class="metrics-row" style="margin-bottom: 5px;">
+        <div class="metric" style="background: #e8f8f5;">
+          <div class="metric-title">Net Calories</div>
+          <div class="metric-val" id="sumNet" style="font-size: 20px;">0</div>
+        </div>
+        <div class="metric" style="background: #fdf2e9;">
+          <div class="metric-title">Remaining</div>
+          <div class="metric-val" id="sumRem" style="font-size: 20px;">0</div>
+        </div>
+      </div>
+      <p style="font-size: 11px; color: var(--muted); text-align: center;">Net = Consumed - Burned</p>
+      
+      <div class="macro-grid" style="margin-top: 15px;">
+        <div class="macro"><span class="macro-lbl">Protein</span><span class="macro-val m-prot" id="sumProt">0g</span></div>
+        <div class="macro"><span class="macro-lbl">Carbs</span><span class="macro-val m-carb" id="sumCarb">0g</span></div>
+        <div class="macro"><span class="macro-lbl">Fat</span><span class="macro-val m-fat" id="sumFat">0g</span></div>
+      </div>
+    </div>
+
+    <!-- Activity Tracker -->
+    <div class="card">
+      <div class="card-header">🏃‍♂️ Log Activity</div>
+      <div style="display: flex; gap: 10px;">
+        <select id="actName" style="flex: 2;">
+          <option value="Walking">Walking</option>
+          <option value="Running">Running</option>
+          <option value="Cycling">Cycling</option>
+          <option value="Swimming">Swimming</option>
+          <option value="Yoga">Yoga</option>
+          <option value="Weightlifting">Weightlifting</option>
+        </select>
+        <input type="number" id="actDuration" placeholder="Mins" style="flex: 1;" />
+      </div>
+      <button class="btn btn-outline" onclick="addActivity()">Add Activity</button>
+    </div>
+
+    <!-- Logs History -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchLogTab('meals')">🍽 Meal Log</button>
+      <button class="tab" onclick="switchLogTab('activities')">🚴 Activity Log</button>
+    </div>
+
+    <div class="card" id="logMeals" style="margin-bottom: 90px;">
+      <div id="mealList"></div>
+    </div>
+
+    <div class="card hidden" id="logActivities" style="margin-bottom: 90px;">
+      <div id="actList"></div>
+    </div>
+
+  </div>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item"><span class="nav-icon">🏠</span>Home</a>
+    <a href="meals.html" class="nav-item"><span class="nav-icon">🍽</span>Meals</a>
+    <a href="summary.html" class="nav-item active"><span class="nav-icon">📊</span>Summary</a>
+    <a href="goals.html" class="nav-item"><span class="nav-icon">🎯</span>Goals</a>
+    <a href="progress.html" class="nav-item"><span class="nav-icon">📈</span>Progress</a>
+  </nav>
+
+  <script src="script.js"></script>
+  <script>
+    function initPage() {
+      let bmr = calculateBMR();
+      let goal = calculateTDEE();
+      let sum = getDailySummary();
+      let net = sum.consumed - sum.burned;
+      
+      document.getElementById('sumNet').innerText = net;
+      document.getElementById('sumRem').innerText = (goal - net);
+      document.getElementById('sumProt').innerText = sum.prot + 'g';
+      document.getElementById('sumCarb').innerText = sum.carb + 'g';
+      document.getElementById('sumFat').innerText = sum.fat + 'g';
+
+      renderLogs();
+    }
+
+    function addActivity() {
+      let name = document.getElementById('actName').value;
+      let duration = parseInt(document.getElementById('actDuration').value);
+      if(!duration || duration <= 0) return alert("Please enter a valid duration.");
+
+      state.activities.push({
+        name, duration,
+        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      });
+      saveState();
+
+      document.getElementById('actDuration').value = '';
+      switchLogTab('activities');
+      initPage(); // Refresh data
+    }
+
+    function switchLogTab(tab) {
+      document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.remove('active');
+        if (i === (tab==='meals'?0:1)) t.classList.add('active');
+      });
+      document.getElementById('logMeals').classList.add('hidden');
+      document.getElementById('logActivities').classList.add('hidden');
+      if (tab === 'meals') document.getElementById('logMeals').classList.remove('hidden');
+      else document.getElementById('logActivities').classList.remove('hidden');
+    }
+
+    function renderLogs() {
+      // Meals
+      let mList = document.getElementById('mealList');
+      if (state.meals.length === 0) {
+         mList.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 10px;">No meals logged today.</div>`;
+      } else {
+        mList.innerHTML = '';
+        state.meals.forEach(m => {
+          let div = document.createElement('div');
+          div.className = 'list-item';
+          div.innerHTML = `
+            <div>
+              <div class="item-name">${m.food.name} <span class="badge" style="background:#eee;color:#333;font-weight:normal;margin-left:5px;">${m.type}</span></div>
+              <div class="item-meta">${m.qty} ${m.food.unit} • ${m.time}</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="item-cal">${Math.round(m.food.cal * m.qty)} kcal</div>
+            </div>
+          `;
+          mList.appendChild(div);
+        });
+      }
+
+      // Activities
+      let aList = document.getElementById('actList');
+      if (state.activities.length === 0) {
+         aList.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 10px;">No activities logged today.</div>`;
+      } else {
+        aList.innerHTML = '';
+        state.activities.forEach(a => {
+          let met = MET_VALUES[a.name.toLowerCase()] || 4.0;
+          let burn = Math.round(a.duration * (met * 3.5 * (state.user?.weight || 70)) / 200);
+
+          let div = document.createElement('div');
+          div.className = 'list-item';
+          div.innerHTML = `
+            <div>
+              <div class="item-name">${a.name}</div>
+              <div class="item-meta">${a.duration} mins • ${a.time}</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="item-cal" style="color: var(--danger);">-${burn} kcal</div>
+            </div>
+          `;
+          aList.appendChild(div);
+        });
+      }
+    }
+  </script>
+</body>
+</html>

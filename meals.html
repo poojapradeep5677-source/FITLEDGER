@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitLedger - Meals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">🍽 Meals</div>
+    </header>
+
+    <!-- Categories -->
+    <div class="tabs">
+      <button class="tab active" onclick="setCategory('Breakfast')">🍳 Breakfast</button>
+      <button class="tab" onclick="setCategory('Lunch')">🍛 Lunch</button>
+      <button class="tab" onclick="setCategory('Dinner')">🍽 Dinner</button>
+      <button class="tab" onclick="setCategory('Snacks')">🍪 Snacks</button>
+    </div>
+
+    <!-- Actions -->
+    <div class="metrics-row" style="margin-bottom: 10px;">
+      <button class="btn btn-outline" style="padding: 10px; font-size: 14px;" onclick="showTab('search')">🔍 Search</button>
+      <button class="btn btn-outline" style="padding: 10px; font-size: 14px;" onclick="showTab('upload')">📸 Upload</button>
+      <button class="btn btn-outline" style="padding: 10px; font-size: 14px;" onclick="showTab('manual')">✍️ Manual</button>
+    </div>
+
+    <!-- Search Section -->
+    <div id="sec-search" class="card">
+      <div class="relative">
+        <input type="text" id="searchInput" placeholder="Search foods (e.g. Dosa, Rice...)" onkeyup="handleSearch()" autocomplete="off" />
+        <div id="searchResults" class="search-results hidden"></div>
+      </div>
+    </div>
+
+    <!-- Upload Section (Simulated) -->
+    <div id="sec-upload" class="card hidden" style="text-align: center;">
+      <h3 style="margin-bottom: 10px;">AI Image Match</h3>
+      <div style="border: 2px dashed #ccc; padding: 30px; border-radius: 12px; margin-bottom: 15px; background:#fafafa;">
+        <span style="font-size: 40px;">📸</span>
+        <p style="color: var(--muted); font-size: 14px; margin-top: 10px;">Tap to simulate upload</p>
+      </div>
+      <button class="btn btn-primary" onclick="simulateUpload()">Simulate Upload</button>
+      <div id="aiUploadResult" class="hidden" style="margin-top: 15px;">
+        <input type="text" id="aiDetected" placeholder="Enter detected food (e.g. curd rice)" />
+        <button class="btn btn-outline" onclick="matchAIFood()">Match Food</button>
+      </div>
+    </div>
+
+    <!-- Manual / Fallback Section -->
+    <div id="sec-manual" class="card hidden">
+      <h3 style="margin-bottom: 15px;">Add Custom Food</h3>
+      <input type="text" id="mName" placeholder="Food Name" />
+      <div style="display: flex; gap: 10px;">
+        <input type="number" id="mCal" placeholder="Calories" />
+        <input type="text" id="mUnit" placeholder="Unit (e.g. cup)" />
+      </div>
+      <div class="macro-grid" style="margin-bottom: 15px;">
+        <input type="number" id="mProt" placeholder="Prot (g)" />
+        <input type="number" id="mCarb" placeholder="Carbs (g)" />
+        <input type="number" id="mFat" placeholder="Fat (g)" />
+      </div>
+      <button class="btn btn-primary" onclick="saveCustomFood()">Save & Add</button>
+    </div>
+
+    <!-- Meal Log List -->
+    <div class="card" style="margin-bottom: 90px;">
+      <div class="card-header">Today's Log</div>
+      <div id="mealList">
+        <div style="text-align: center; color: var(--muted); padding: 20px;">No meals logged yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Quantity Modal -->
+  <div id="qtyModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 id="qtyTitle" style="margin-bottom: 10px;">Add Food</h3>
+      <p id="qtyInfo" style="color: var(--muted); font-size: 13px; margin-bottom: 15px;"></p>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px;">
+        <button class="w-btn w-sub" onclick="updateQty(-0.5)">-</button>
+        <span id="qtyVal" style="font-size: 24px; font-weight: 700;">1</span>
+        <button class="w-btn w-add" onclick="updateQty(0.5)">+</button>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-outline" onclick="document.getElementById('qtyModal').classList.add('hidden')">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmAddFood()">Add Log</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item"><span class="nav-icon">🏠</span>Home</a>
+    <a href="meals.html" class="nav-item active"><span class="nav-icon">🍽</span>Meals</a>
+    <a href="summary.html" class="nav-item"><span class="nav-icon">📊</span>Summary</a>
+    <a href="goals.html" class="nav-item"><span class="nav-icon">🎯</span>Goals</a>
+    <a href="progress.html" class="nav-item"><span class="nav-icon">📈</span>Progress</a>
+  </nav>
+
+  <script src="script.js"></script>
+  <script>
+    let currentCategory = 'Breakfast';
+    let selectedFood = null;
+    let currentQty = 1;
+
+    function initPage() {
+      renderLog();
+    }
+
+    function setCategory(cat) {
+      currentCategory = cat;
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.remove('active');
+        if (t.innerText.includes(cat)) t.classList.add('active');
+      });
+    }
+
+    function showTab(tab) {
+      document.getElementById('sec-search').classList.add('hidden');
+      document.getElementById('sec-upload').classList.add('hidden');
+      document.getElementById('sec-manual').classList.add('hidden');
+      document.getElementById('sec-' + tab).classList.remove('hidden');
+    }
+
+    // Smart Search
+    function handleSearch() {
+      let q = document.getElementById('searchInput').value;
+      let resDiv = document.getElementById('searchResults');
+      if (q.length < 2) {
+        resDiv.classList.add('hidden');
+        return;
+      }
+      
+      let results = fuzzySearch(q);
+      resDiv.innerHTML = '';
+      if (results.length === 0) {
+        resDiv.innerHTML = `<div class="search-item" onclick="showTab('manual')">No match. Click to Add Custom</div>`;
+      } else {
+        results.forEach(f => {
+          let div = document.createElement('div');
+          div.className = 'search-item';
+          div.innerHTML = `<div><strong>${f.name}</strong><br><small>${f.cal} kcal / ${f.unit}</small></div>`;
+          div.onclick = () => openQtyModal(f);
+          resDiv.appendChild(div);
+        });
+      }
+      resDiv.classList.remove('hidden');
+    }
+
+    function openQtyModal(food) {
+      selectedFood = food;
+      currentQty = 1;
+      document.getElementById('qtyTitle').innerText = food.name;
+      document.getElementById('qtyInfo').innerText = `${food.cal} kcal per ${food.unit} | P:${food.prot}g C:${food.carb}g F:${food.fat}g`;
+      document.getElementById('qtyVal').innerText = currentQty;
+      document.getElementById('qtyModal').classList.remove('hidden');
+      document.getElementById('searchResults').classList.add('hidden');
+      document.getElementById('searchInput').value = '';
+    }
+
+    function updateQty(val) {
+      if (currentQty + val > 0) {
+        currentQty += val;
+        document.getElementById('qtyVal').innerText = currentQty;
+      }
+    }
+
+    function confirmAddFood() {
+      state.meals.push({
+        type: currentCategory,
+        food: selectedFood,
+        qty: currentQty,
+        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      });
+      saveState();
+      document.getElementById('qtyModal').classList.add('hidden');
+      renderLog();
+    }
+
+    // Manual Food
+    function saveCustomFood() {
+      let name = document.getElementById('mName').value;
+      let cal = parseFloat(document.getElementById('mCal').value);
+      let unit = document.getElementById('mUnit').value || 'serving';
+      let prot = parseFloat(document.getElementById('mProt').value) || 0;
+      let carb = parseFloat(document.getElementById('mCarb').value) || 0;
+      let fat = parseFloat(document.getElementById('mFat').value) || 0;
+
+      if (!name || isNaN(cal)) return alert("Please fill Name and Calories.");
+
+      let foodObj = { name, cal, unit, prot, carb, fat };
+      state.customFoods.push(foodObj);
+      
+      state.meals.push({
+        type: currentCategory,
+        food: foodObj,
+        qty: 1,
+        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      });
+      saveState();
+
+      // clear inputs
+      document.getElementById('mName').value = '';
+      document.getElementById('mCal').value = '';
+      document.getElementById('mUnit').value = '';
+      document.getElementById('mProt').value = '';
+      document.getElementById('mCarb').value = '';
+      document.getElementById('mFat').value = '';
+      
+      renderLog();
+      showTab('search');
+    }
+
+    // AI Simulated Upload
+    function simulateUpload() {
+      let btn = event.target;
+      btn.innerText = "Analyzing...";
+      setTimeout(() => {
+        btn.innerText = "Simulate Upload";
+        document.getElementById('aiUploadResult').classList.remove('hidden');
+      }, 1500);
+    }
+
+    function matchAIFood() {
+      let val = document.getElementById('aiDetected').value;
+      if(!val) return;
+      let results = fuzzySearch(val);
+      if (results.length > 0) {
+        openQtyModal(results[0]);
+      } else {
+        alert("Food not found in database. Please enter manually.");
+        showTab('manual');
+        document.getElementById('mName').value = val;
+      }
+      document.getElementById('aiUploadResult').classList.add('hidden');
+      document.getElementById('aiDetected').value = '';
+    }
+
+    function renderLog() {
+      let list = document.getElementById('mealList');
+      if (state.meals.length === 0) {
+        list.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 20px;">No meals logged yet.</div>`;
+        return;
+      }
+      
+      list.innerHTML = '';
+      // Group by category, though we can just list them chronologically with category flag
+      state.meals.forEach((m, idx) => {
+        let div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+          <div>
+            <div class="item-name">${m.food.name} <span class="badge" style="background:#eee;color:#333;font-weight:normal;margin-left:5px;">${m.type}</span></div>
+            <div class="item-meta">${m.qty} ${m.food.unit} • ${m.time}</div>
+          </div>
+          <div style="text-align: right;">
+            <div class="item-cal">${Math.round(m.food.cal * m.qty)} kcal</div>
+            <div style="font-size: 10px; color: var(--muted);">P:${Math.round(m.food.prot*m.qty)} C:${Math.round(m.food.carb*m.qty)} F:${Math.round(m.food.fat*m.qty)}</div>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>
